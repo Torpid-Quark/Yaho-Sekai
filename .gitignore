@@ -1,0 +1,13 @@
+# Security: Hide my API Keys
+config.env
+.env
+
+# Performance: Hide heavy library folders
+node_modules/
+__pycache__/
+.venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
