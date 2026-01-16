@@ -27,16 +27,17 @@ def load_key():
 
 client = Groq(api_key=load_key())
 
-# UPDATED: Added existing_code field
+# UPDATED: Added image_data field
 class PromptRequest(BaseModel):
     prompt: str
-    existing_code: str = "" # Default to empty if it's the first prompt
+    existing_code: str = "" 
+    image_data: str | None = None  # New field for the image string
 
 @app.post("/generate")
 async def generate_ui(request: PromptRequest):
     print(f"🤖 Processing instruction: {request.prompt}")
     
-    # SYSTEM MESSAGE: Now includes instructions for editing/iterating
+    # SYSTEM MESSAGE: Preserving your custom Navigation & Style rules
     system_msg = (
         "You are an expert React + Tailwind CSS developer. "
         "Output ONLY raw code. NO markdown backticks. "
@@ -49,22 +50,58 @@ async def generate_ui(request: PromptRequest):
         "ICON RULE: Use emojis only (🚀, 🛒)."
     )
     
-    # USER CONTENT: Combines the current code with the new instruction
-    if request.existing_code:
-        user_content = (
-            f"Existing Code to modify:\n{request.existing_code}\n\n"
-            f"New Instruction: {request.prompt}"
-        )
+    # LOGIC SWITCH: Check if an image was uploaded
+    if request.image_data:
+        # --- VISION MODE (NEW 2026 STANDARD) ---
+        print("👁️ Vision Mode Activated (Llama 4 Scout)")
+        # This is the CORRECT model ID for vision
+        model = "meta-llama/llama-4-scout-17b-16e-instruct" 
+        
+        # Multimodal message structure
+        messages = [
+            {"role": "system", "content": system_msg},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text", 
+                        "text": f"Build a React component that looks exactly like this image. Instruction: {request.prompt}"
+                    },
+                    {
+                        "type": "image_url", 
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{request.image_data}"
+                        }
+                    }
+                ]
+            }
+        ]
+        
     else:
-        user_content = f"Create a new React component for: {request.prompt}"
+        # --- TEXT MODE ---
+        print("📝 Text Mode Activated")
+        model = "llama-3.3-70b-versatile"
+        
+        if request.existing_code:
+            user_content = (
+                f"Existing Code to modify:\n{request.existing_code}\n\n"
+                f"New Instruction: {request.prompt}"
+            )
+        else:
+            user_content = f"Create a new React component for: {request.prompt}"
+            
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_content}
+        ]
 
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_content}
-            ],
+            model=model,
+            messages=messages,
+            # Vision model sometimes needs a bit more creativity (temperature) to interpret layouts
+            temperature=0.2, 
+            max_tokens=6000, 
         )
         
         content = response.choices[0].message.content

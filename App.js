@@ -5,39 +5,68 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // 1. PERSISTENCE: Keeps your history array in LocalStorage
+  // NEW: State for the uploaded image
+  const [selectedImage, setSelectedImage] = useState(null); 
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  // 1. PERSISTENCE
   const [history, setHistory] = useState(() => {
     const saved = localStorage.getItem("ai_ui_history");
     return saved ? JSON.parse(saved) : [];
   });
 
-  // 2. FIXED INITIAL STATE: Always start fresh on a new session/refresh
-  // Your sidebar will still have all your old work!
-  const [code, setCode] = useState("import React from 'react';\n\nexport default function App() { return <div className='p-10 text-center text-gray-500'>New Session Started. Describe a UI to begin...</div> }");
+  // 2. INITIAL STATE
+  const [code, setCode] = useState("import React from 'react';\n\nexport default function App() { return <div className='p-10 text-center text-gray-500'>New Session Started. Upload a screenshot or describe a UI...</div> }");
 
-  // 3. AUTO-SAVE: Whenever history changes, update LocalStorage
+  // 3. AUTO-SAVE
   useEffect(() => {
     localStorage.setItem("ai_ui_history", JSON.stringify(history));
   }, [history]);
 
+  // --- NEW: HANDLE IMAGE UPLOAD ---
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Create a fake URL to show the user a preview
+      setPreviewUrl(URL.createObjectURL(file));
+
+      // Convert the file to Base64 text for the AI
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // We only want the base64 string, not the "data:image/jpeg..." part
+        const base64String = reader.result.split(',')[1];
+        setSelectedImage(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setPreviewUrl(null);
+  };
+
   const handleGenerate = async () => {
-    if (!prompt) return;
+    if (!prompt && !selectedImage) return; // Allow prompt OR image
     setLoading(true);
+    
     try {
       const response = await fetch("http://localhost:8000/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           prompt: prompt,
-          existing_code: code 
+          existing_code: code,
+          image_data: selectedImage // Sending the image data!
         }),
       });
       const data = await response.json();
       
       if (data.code) {
         setCode(data.code);
-        setHistory(prev => [{ prompt: prompt, code: data.code, timestamp: new Date().getTime() }, ...prev]);
+        setHistory(prev => [{ prompt: prompt || "Image Upload", code: data.code, timestamp: new Date().getTime() }, ...prev]);
         setPrompt(""); 
+        clearImage(); // Clear image after sending
       }
     } catch (error) {
       alert("Error: Is your Python server running?");
@@ -55,7 +84,7 @@ function App() {
   };
 
   const clearHistory = () => {
-    if (window.confirm("Are you sure you want to delete all saved designs?")) {
+    if (window.confirm("Delete all history?")) {
       setHistory([]);
       localStorage.removeItem("ai_ui_history");
     }
@@ -102,7 +131,7 @@ function App() {
       <div className="flex-1 flex flex-col p-6 overflow-hidden">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-black text-gray-800 tracking-tight italic">
-            AI UI AUTOMATOR <span className="text-blue-600">PRO</span>
+            YAHO <span className="text-blue-600">SEKAI</span>
           </h1>
           <button 
             onClick={downloadCode}
@@ -112,21 +141,49 @@ function App() {
           </button>
         </div>
 
-        <div className="flex gap-2 mb-6 bg-white p-2 rounded-xl shadow-lg border border-gray-200">
-          <input 
-            className="flex-1 p-3 outline-none text-sm text-gray-700 bg-transparent"
-            placeholder="Edit current design or create new (e.g. 'Add a dark theme')"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
-          />
-          <button 
-            onClick={handleGenerate}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold text-sm disabled:bg-gray-300 transition-all shadow-md active:scale-95"
-          >
-            {loading ? "🚀 PROCESSING..." : "EXECUTE"}
-          </button>
+        {/* --- INPUT AREA --- */}
+        <div className="mb-6 flex flex-col gap-2">
+          
+          {/* Image Preview Badge */}
+          {previewUrl && (
+            <div className="flex items-center gap-2 bg-blue-50 w-fit px-3 py-1 rounded-full border border-blue-200">
+              <img src={previewUrl} alt="Preview" className="w-6 h-6 rounded object-cover" />
+              <span className="text-xs text-blue-600 font-bold">Image attached</span>
+              <button onClick={clearImage} className="text-blue-400 hover:text-red-500 ml-2">✖</button>
+            </div>
+          )}
+
+          <div className="flex gap-2 bg-white p-2 rounded-xl shadow-lg border border-gray-200 items-center">
+            
+            {/* UPLOAD BUTTON */}
+            <label className="cursor-pointer p-3 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleImageUpload}
+              />
+              📷
+            </label>
+
+            <input 
+              className="flex-1 p-3 outline-none text-sm text-gray-700 bg-transparent"
+              placeholder={previewUrl ? "Describe what to do with this image..." : "Describe a UI or upload a screenshot..."}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleGenerate()}
+            />
+            
+            <button 
+              onClick={handleGenerate}
+              disabled={loading}
+              className={`px-8 py-3 rounded-lg font-bold text-sm transition-all shadow-md active:scale-95 ${
+                loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              {loading ? "PROCESSING..." : "EXECUTE"}
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 rounded-2xl overflow-hidden shadow-2xl border border-gray-300 bg-white">
