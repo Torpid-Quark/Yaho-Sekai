@@ -3,8 +3,7 @@
 Yaho-Sekai is a full-stack generative UI platform capable of "Vision-to-Code" synthesis. Powered by FastAPI and Llama 4 Vision (via Groq), it allows users to upload screenshots, sketches, or wireframes and instantly converts them into editable, production-ready React + Tailwind code with persistent history and live preview.
 
 ### 🌟 Live Demo
-* **Frontend:** [Insert your Netlify URL here]
-* **Backend:** Hosted on Render (FastAPI)
+* https://yaho-sekai.netlify.app/
 
 ### 🛠️ Tech Stack
 * **Frontend:** React.js, Tailwind CSS, Sandpack (for live code preview)
